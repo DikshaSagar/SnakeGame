@@ -1,0 +1,617 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🎮 Hand Gesture Snake Game</title>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        
+        .container {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            max-width: 1200px;
+            width: 100%;
+        }
+        
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 2.5em;
+        }
+        
+        .subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 1.2em;
+        }
+        
+        .game-area {
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+        
+        .game-canvas-container {
+            position: relative;
+        }
+        
+        #gameCanvas {
+            border: 4px solid #333;
+            border-radius: 10px;
+            background: #000;
+            display: block;
+        }
+        
+        #videoCanvas {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            border: 3px solid #4CAF50;
+            border-radius: 8px;
+            opacity: 0.8;
+        }
+        
+        .controls {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            min-width: 280px;
+        }
+        
+        .stats-box {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+        }
+        
+        .stat-label {
+            font-size: 0.9em;
+            opacity: 0.9;
+            margin-bottom: 5px;
+        }
+        
+        .stat-value {
+            font-size: 2.5em;
+            font-weight: bold;
+        }
+        
+        .button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            font-size: 1.1em;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-weight: bold;
+        }
+        
+        .button:hover {
+            background: #45a049;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(76, 175, 80, 0.4);
+        }
+        
+        .button:active {
+            transform: translateY(0);
+        }
+        
+        .button.danger {
+            background: #f44336;
+        }
+        
+        .button.danger:hover {
+            background: #da190b;
+        }
+        
+        .instructions {
+            background: #f5f5f5;
+            padding: 20px;
+            border-radius: 10px;
+            font-size: 0.95em;
+            line-height: 1.6;
+        }
+        
+        .instructions h3 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+        
+        .instructions ul {
+            margin-left: 20px;
+            color: #555;
+        }
+        
+        .instructions li {
+            margin-bottom: 8px;
+        }
+        
+        .status {
+            background: #fff3cd;
+            border: 2px solid #ffc107;
+            color: #856404;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+            font-weight: bold;
+        }
+        
+        .status.success {
+            background: #d4edda;
+            border-color: #28a745;
+            color: #155724;
+        }
+        
+        .status.error {
+            background: #f8d7da;
+            border-color: #dc3545;
+            color: #721c24;
+        }
+        
+        .game-over-overlay {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.9);
+            color: white;
+            padding: 40px;
+            border-radius: 15px;
+            text-align: center;
+            display: none;
+        }
+        
+        .game-over-overlay.show {
+            display: block;
+        }
+        
+        .game-over-overlay h2 {
+            font-size: 3em;
+            color: #ff4444;
+            margin-bottom: 20px;
+        }
+        
+        .game-over-overlay p {
+            font-size: 1.5em;
+            margin-bottom: 30px;
+        }
+        
+        #video {
+            display: none;
+        }
+        
+        .emoji {
+            font-size: 1.3em;
+        }
+        
+        @media (max-width: 768px) {
+            h1 {
+                font-size: 1.8em;
+            }
+            
+            .game-area {
+                flex-direction: column;
+                align-items: center;
+            }
+            
+            #gameCanvas {
+                width: 100%;
+                height: auto;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1><span class="emoji">🎮</span> Hand Gesture Snake Game <span class="emoji">🐍</span></h1>
+        <p class="subtitle">Control the snake with your hand movements!</p>
+        
+        <div class="game-area">
+            <div class="game-canvas-container">
+                <canvas id="gameCanvas" width="640" height="480"></canvas>
+                <canvas id="videoCanvas" width="160" height="120"></canvas>
+                <div id="gameOverOverlay" class="game-over-overlay">
+                    <h2>GAME OVER!</h2>
+                    <p id="finalScore">Score: 0</p>
+                    <button class="button" onclick="resetGame()">Play Again</button>
+                </div>
+            </div>
+            
+            <div class="controls">
+                <div class="stats-box">
+                    <div class="stat-label">Current Score</div>
+                    <div class="stat-value" id="score">0</div>
+                </div>
+                
+                <div class="stats-box" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
+                    <div class="stat-label">High Score</div>
+                    <div class="stat-value" id="highScore">0</div>
+                </div>
+                
+                <div class="stats-box" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);">
+                    <div class="stat-label">Snake Length</div>
+                    <div class="stat-value" id="length">1</div>
+                </div>
+                
+                <button class="button" onclick="startGame()">
+                    <span class="emoji">▶️</span> Start Game
+                </button>
+                
+                <button class="button danger" onclick="resetGame()">
+                    <span class="emoji">🔄</span> Restart
+                </button>
+                
+                <div id="status" class="status">
+                    Click "Start Game" to begin
+                </div>
+                
+                <div class="instructions">
+                    <h3><span class="emoji">📖</span> How to Play</h3>
+                    <ul>
+                        <li><strong>Show your hand</strong> to the camera</li>
+                        <li><strong>Point your index finger</strong> to control direction</li>
+                        <li><strong>Eat red food</strong> to grow longer</li>
+                        <li><strong>Avoid walls</strong> and your tail</li>
+                        <li><strong>Good lighting</strong> helps tracking!</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+        
+        <video id="video" autoplay></video>
+    </div>
+
+    <script>
+        // Game variables
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const videoCanvas = document.getElementById('videoCanvas');
+        const videoCtx = videoCanvas.getContext('2d');
+        const video = document.getElementById('video');
+        
+        const gridSize = 20;
+        let snake = [{x: 320, y: 240}];
+        let direction = {x: gridSize, y: 0};
+        let food = generateFood();
+        let score = 0;
+        let highScore = localStorage.getItem('snakeHighScore') || 0;
+        let gameOver = false;
+        let gameStarted = false;
+        let gameLoop = null;
+        
+        // Hand tracking variables
+        let hands = null;
+        let camera = null;
+        let lastDirectionChange = Date.now();
+        const directionCooldown = 200; // ms
+        
+        // Update high score display
+        document.getElementById('highScore').textContent = highScore;
+        
+        function generateFood() {
+            let newFood;
+            do {
+                newFood = {
+                    x: Math.floor(Math.random() * (canvas.width / gridSize)) * gridSize,
+                    y: Math.floor(Math.random() * (canvas.height / gridSize)) * gridSize
+                };
+            } while (snake.some(segment => segment.x === newFood.x && segment.y === newFood.y));
+            return newFood;
+        }
+        
+        function updateStatus(message, type = 'default') {
+            const statusEl = document.getElementById('status');
+            statusEl.textContent = message;
+            statusEl.className = 'status';
+            if (type === 'success') statusEl.classList.add('success');
+            if (type === 'error') statusEl.classList.add('error');
+        }
+        
+        async function startGame() {
+            if (gameStarted) return;
+            
+            updateStatus('Initializing camera...', 'default');
+            
+            try {
+                // Initialize MediaPipe Hands
+                hands = new Hands({
+                    locateFile: (file) => {
+                        return `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`;
+                    }
+                });
+                
+                hands.setOptions({
+                    maxNumHands: 1,
+                    modelComplexity: 1,
+                    minDetectionConfidence: 0.7,
+                    minTrackingConfidence: 0.7
+                });
+                
+                hands.onResults(onHandResults);
+                
+                // Start camera
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { width: 640, height: 480 } 
+                });
+                video.srcObject = stream;
+                
+                await video.play();
+                
+                camera = new Camera(video, {
+                    onFrame: async () => {
+                        await hands.send({image: video});
+                    },
+                    width: 640,
+                    height: 480
+                });
+                
+                await camera.start();
+                
+                gameStarted = true;
+                updateStatus('Hand detected! Point to control', 'success');
+                
+                // Start game loop
+                gameLoop = setInterval(updateGame, 150);
+                
+            } catch (error) {
+                console.error('Error starting game:', error);
+                updateStatus('Camera access denied. Please allow camera access.', 'error');
+            }
+        }
+        
+        function onHandResults(results) {
+            // Draw hand on video canvas
+            videoCtx.save();
+            videoCtx.clearRect(0, 0, videoCanvas.width, videoCanvas.height);
+            videoCtx.drawImage(results.image, 0, 0, videoCanvas.width, videoCanvas.height);
+            
+            if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+                const landmarks = results.multiHandLandmarks[0];
+                
+                // Draw hand landmarks
+                drawConnectors(videoCtx, landmarks, HAND_CONNECTIONS, {color: '#00FF00', lineWidth: 2});
+                drawLandmarks(videoCtx, landmarks, {color: '#FF0000', lineWidth: 1, radius: 2});
+                
+                // Get direction from hand
+                if (!gameOver) {
+                    const indexTip = landmarks[8]; // Index finger tip
+                    
+                    const fingerX = indexTip.x * canvas.width;
+                    const fingerY = indexTip.y * canvas.height;
+                    
+                    const headX = snake[0].x;
+                    const headY = snake[0].y;
+                    
+                    const dx = fingerX - headX;
+                    const dy = fingerY - headY;
+                    
+                    const now = Date.now();
+                    if (now - lastDirectionChange > directionCooldown) {
+                        const deadZone = 50;
+                        
+                        if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > deadZone) {
+                            const newDir = {x: dx > 0 ? gridSize : -gridSize, y: 0};
+                            if (newDir.x !== -direction.x) {
+                                direction = newDir;
+                                lastDirectionChange = now;
+                            }
+                        } else if (Math.abs(dy) > Math.abs(dx) && Math.abs(dy) > deadZone) {
+                            const newDir = {x: 0, y: dy > 0 ? gridSize : -gridSize};
+                            if (newDir.y !== -direction.y) {
+                                direction = newDir;
+                                lastDirectionChange = now;
+                            }
+                        }
+                    }
+                }
+                
+                if (gameStarted && document.getElementById('status').textContent !== 'Hand detected! Point to control') {
+                    updateStatus('Hand detected! Point to control', 'success');
+                }
+            } else {
+                if (gameStarted && !gameOver) {
+                    updateStatus('Show your hand to control', 'default');
+                }
+            }
+            
+            videoCtx.restore();
+        }
+        
+        function updateGame() {
+            if (gameOver || !gameStarted) return;
+            
+            // Calculate new head position
+            const newHead = {
+                x: snake[0].x + direction.x,
+                y: snake[0].y + direction.y
+            };
+            
+            // Check wall collision
+            if (newHead.x < 0 || newHead.x >= canvas.width || 
+                newHead.y < 0 || newHead.y >= canvas.height) {
+                endGame();
+                return;
+            }
+            
+            // Check self collision
+            if (snake.some(segment => segment.x === newHead.x && segment.y === newHead.y)) {
+                endGame();
+                return;
+            }
+            
+            snake.unshift(newHead);
+            
+            // Check food collision
+            if (newHead.x === food.x && newHead.y === food.y) {
+                score += 10;
+                food = generateFood();
+                document.getElementById('score').textContent = score;
+                document.getElementById('length').textContent = snake.length;
+            } else {
+                snake.pop();
+            }
+            
+            drawGame();
+        }
+        
+        function drawGame() {
+            // Clear canvas
+            ctx.fillStyle = '#000';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // Draw grid
+            ctx.strokeStyle = '#222';
+            ctx.lineWidth = 1;
+            for (let i = 0; i < canvas.width; i += gridSize) {
+                ctx.beginPath();
+                ctx.moveTo(i, 0);
+                ctx.lineTo(i, canvas.height);
+                ctx.stroke();
+            }
+            for (let i = 0; i < canvas.height; i += gridSize) {
+                ctx.beginPath();
+                ctx.moveTo(0, i);
+                ctx.lineTo(canvas.width, i);
+                ctx.stroke();
+            }
+            
+            // Draw snake
+            snake.forEach((segment, index) => {
+                const gradient = ctx.createLinearGradient(
+                    segment.x, segment.y, 
+                    segment.x + gridSize, segment.y + gridSize
+                );
+                
+                if (index === 0) {
+                    gradient.addColorStop(0, '#00ff88');
+                    gradient.addColorStop(1, '#00cc66');
+                } else {
+                    const brightness = Math.max(100, 255 - index * 5);
+                    gradient.addColorStop(0, `rgb(0, ${brightness}, 0)`);
+                    gradient.addColorStop(1, `rgb(0, ${brightness - 50}, 0)`);
+                }
+                
+                ctx.fillStyle = gradient;
+                ctx.fillRect(segment.x + 1, segment.y + 1, gridSize - 2, gridSize - 2);
+                
+                // Draw eyes on head
+                if (index === 0) {
+                    ctx.fillStyle = '#fff';
+                    ctx.fillRect(segment.x + 4, segment.y + 4, 4, 4);
+                    ctx.fillRect(segment.x + 12, segment.y + 4, 4, 4);
+                    ctx.fillStyle = '#000';
+                    ctx.fillRect(segment.x + 6, segment.y + 6, 2, 2);
+                    ctx.fillRect(segment.x + 14, segment.y + 6, 2, 2);
+                }
+            });
+            
+            // Draw food
+            const gradient = ctx.createRadialGradient(
+                food.x + gridSize / 2, food.y + gridSize / 2, 2,
+                food.x + gridSize / 2, food.y + gridSize / 2, gridSize / 2
+            );
+            gradient.addColorStop(0, '#ff6666');
+            gradient.addColorStop(1, '#ff0000');
+            
+            ctx.fillStyle = gradient;
+            ctx.beginPath();
+            ctx.arc(food.x + gridSize / 2, food.y + gridSize / 2, gridSize / 2, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Shine effect
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+            ctx.beginPath();
+            ctx.arc(food.x + gridSize / 3, food.y + gridSize / 3, gridSize / 5, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        
+        function endGame() {
+            gameOver = true;
+            clearInterval(gameLoop);
+            
+            if (score > highScore) {
+                highScore = score;
+                localStorage.setItem('snakeHighScore', highScore);
+                document.getElementById('highScore').textContent = highScore;
+            }
+            
+            document.getElementById('finalScore').textContent = `Final Score: ${score}`;
+            document.getElementById('gameOverOverlay').classList.add('show');
+            updateStatus('Game Over! Click Restart to play again', 'error');
+        }
+        
+        function resetGame() {
+            snake = [{x: 320, y: 240}];
+            direction = {x: gridSize, y: 0};
+            food = generateFood();
+            score = 0;
+            gameOver = false;
+            
+            document.getElementById('score').textContent = score;
+            document.getElementById('length').textContent = snake.length;
+            document.getElementById('gameOverOverlay').classList.remove('show');
+            
+            if (gameStarted) {
+                updateStatus('Hand detected! Point to control', 'success');
+                gameLoop = setInterval(updateGame, 150);
+            } else {
+                updateStatus('Click "Start Game" to begin', 'default');
+            }
+            
+            drawGame();
+        }
+        
+        // Initial draw
+        drawGame();
+        
+        // Keyboard controls (backup)
+        document.addEventListener('keydown', (e) => {
+            if (!gameStarted || gameOver) return;
+            
+            const keyDirections = {
+                'ArrowUp': {x: 0, y: -gridSize},
+                'ArrowDown': {x: 0, y: gridSize},
+                'ArrowLeft': {x: -gridSize, y: 0},
+                'ArrowRight': {x: gridSize, y: 0},
+                'w': {x: 0, y: -gridSize},
+                's': {x: 0, y: gridSize},
+                'a': {x: -gridSize, y: 0},
+                'd': {x: gridSize, y: 0}
+            };
+            
+            const newDir = keyDirections[e.key];
+            if (newDir && (newDir.x !== -direction.x || newDir.y !== -direction.y)) {
+                direction = newDir;
+            }
+        });
+    </script>
+</body>
+</html>
