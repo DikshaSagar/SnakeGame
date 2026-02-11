@@ -356,14 +356,19 @@
                 });
                 
                 hands.onResults(onHandResults);
-                
+
                 // Start camera
-                const stream = await navigator.mediaDevices.getUserMedia({ 
-                    video: { width: 640, height: 480 } 
+                camera = new Camera(video, {
+                   onFrame: async () => {
+                   await hands.send({ image: video });
+                },
+                 width: 640,
+                 height: 480
                 });
-                video.srcObject = stream;
+
+                await camera.start();
+
                 
-                await video.play();
                 
                 camera = new Camera(video, {
                     onFrame: async () => {
