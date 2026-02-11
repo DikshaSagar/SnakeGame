@@ -358,15 +358,7 @@
                 hands.onResults(onHandResults);
 
                 // Start camera
-                camera = new Camera(video, {
-                   onFrame: async () => {
-                   await hands.send({ image: video });
-                },
-                 width: 640,
-                 height: 480
-                });
-
-                await camera.start();
+                
 
                 
                 
