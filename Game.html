@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🎮 Hand Gesture Snake Game</title>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        html, body {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #111;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .container {
+            display: flex;
+            flex-direction: column;
+            width: 100vw;
+            height: 100vh;
+            padding: 10px;
+            gap: 8px;
+        }
+        
+        h1 {
+            text-align: center;
+            color: #fff;
+            margin: 0;
+            font-size: 1.6em;
+            flex-shrink: 0;
+        }
+        
+        .subtitle {
+            text-align: center;
+            color: #aaa;
+            margin: 0;
+            font-size: 0.95em;
+            flex-shrink: 0;
+        }
+        
+        .game-area {
+            display: flex;
+            flex: 1;
+            min-height: 0;
+        }
+        
+        .game-canvas-container {
+            position: relative;
+            flex: 1;
+            min-width: 0;
+            display: flex;
+        }
+        
+        #gameCanvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            border-radius: 8px;
+            background: #000;
+        }
+
+        /* Floating overlay buttons */
+        .overlay-controls {
+            position: absolute;
+            top: 14px;
+            right: 14px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            z-index: 10;
+        }
+
+        /* Floating status bar */
+        #status {
+            position: absolute;
+            bottom: 14px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 10;
+            white-space: nowrap;
+        }
+        
+        .button {
+            background: rgba(0,0,0,0.65);
+            color: white;
+            border: 2px solid rgba(255,255,255,0.3);
+            padding: 8px 16px;
+            font-size: 0.95em;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-weight: bold;
+            backdrop-filter: blur(4px);
+        }
+        
+        .button:hover {
+            background: rgba(255,255,255,0.2);
+            border-color: white;
+        }
+        
+        .button.danger {
+            border-color: rgba(255,80,80,0.6);
+            color: #ff9999;
+        }
+        
+        .button.danger:hover {
+            background: rgba(200,0,0,0.5);
+            border-color: #ff4444;
+            color: white;
+        }
+        
+        .status {
+            background: rgba(50,40,0,0.75);
+            border: 2px solid #ffc107;
+            color: #ffc107;
+            padding: 8px 18px;
+            border-radius: 20px;
+            text-align: center;
+            font-weight: bold;
+            font-size: 0.85em;
+            backdrop-filter: blur(4px);
+        }
+        
+        .status.success {
+            background: rgba(10,46,16,0.75);
+            border-color: #28a745;
+            color: #4cdd6e;
+        }
+        
+        .status.error {
+            background: rgba(46,10,10,0.75);
+            border-color: #dc3545;
+            color: #ff6b6b;
+        }
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.9);
+            color: white;
+            padding: 40px;
+            border-radius: 15px;
+            text-align: center;
+            display: none;
+        }
+        
+        .game-over-overlay.show {
+            display: block;
+        }
+        
+        .game-over-overlay h2 {
+            font-size: 3em;
+            color: #ff4444;
+            margin-bottom: 20px;
+        }
+        
+        .game-over-overlay p {
+            font-size: 1.5em;
+            margin-bottom: 30px;
+        }
+        
+        #video {
+            display: none;
+        }
+        
+        .emoji {
+            font-size: 1.3em;
+        }
+        
+        @media (max-width: 768px) {
+            h1 {
+                font-size: 1.8em;
+            }
+            
+            .game-area {
+                flex-direction: column;
+                align-items: center;
+            }
+            
+            #gameCanvas {
+                width: 100%;
+                height: auto;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1><span class="emoji">🎮</span> Hand Gesture Snake Game <span class="emoji">🐍</span></h1>
+        <p class="subtitle">Control the snake with your hand movements!</p>
+        
+        <div class="game-area">
+            <div class="game-canvas-container">
+                <canvas id="gameCanvas"></canvas>
+
+                <!-- Floating buttons top-right -->
+                <div class="overlay-controls">
+                    <button class="button" onclick="startGame()">▶️ Start</button>
+                    <button class="button danger" onclick="resetGame()">🔄 Restart</button>
+                </div>
+
+                <div id="gameOverOverlay" class="game-over-overlay">
+                    <h2>GAME OVER!</h2>
+                    <p id="finalScore">Score: 0</p>
+                    <button class="button" onclick="resetGame()">Play Again</button>
+                </div>
+
+                <div id="status" class="status">Click "Start" to begin</div>
+            </div>
+        </div>
+        
+        <video id="video" autoplay></video>
+    </div>
+
+    <script>
+        // Game variables
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const video = document.getElementById('video');
+
+        function resizeCanvas() {
+            const container = canvas.parentElement;
+            canvas.width = container.clientWidth;
+            canvas.height = container.clientHeight;
+        }
+        resizeCanvas();
+        window.addEventListener('resize', () => { resizeCanvas(); drawGame(); });
+
+        // Snake is a trail of {x,y} positions (pixel coords)
+        const SNAKE_SPACING = 4;    // px between trail points (smaller = smoother)
+        const SNAKE_THICKNESS = 14; // drawing thickness
+        const FOOD_RADIUS = 18;
+        const INITIAL_LENGTH_PX = 80;   // starting snake length in pixels
+        const GROW_AMOUNT_PX   = 60;    // pixels added per food eaten
+
+        let snake = [];
+        let snakeLengthPx = INITIAL_LENGTH_PX; // max trail length in PIXELS
+        let fingerPos = null;
+        let food = null;
+        let score = 0;
+        let highScore = localStorage.getItem('snakeHighScore') || 0;
+        let gameOver = false;
+        let gameStarted = false;
+        let animFrame = null;
+
+        // Hand tracking
+        let hands = null;
+        let camera = null;
+
+        function spawnFood() {
+            food = {
+                x: FOOD_RADIUS + Math.random() * (canvas.width  - FOOD_RADIUS * 2),
+                y: FOOD_RADIUS + Math.random() * (canvas.height - FOOD_RADIUS * 2)
+            };
+        }
+        spawnFood();
+
+        function updateStatus(message, type = 'default') {
+            const el = document.getElementById('status');
+            el.textContent = message;
+            el.className = 'status';
+            if (type === 'success') el.classList.add('success');
+            if (type === 'error')   el.classList.add('error');
+        }
+
+        async function startGame() {
+            if (gameStarted) return;
+            updateStatus('Initializing camera...', 'default');
+            try {
+                hands = new Hands({
+                    locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+                });
+                hands.setOptions({
+                    maxNumHands: 1,
+                    modelComplexity: 1,
+                    minDetectionConfidence: 0.7,
+                    minTrackingConfidence: 0.7
+                });
+                hands.onResults(onHandResults);
+
+                const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 } });
+                video.srcObject = stream;
+                await video.play();
+
+                camera = new Camera(video, {
+                    onFrame: async () => { await hands.send({ image: video }); },
+                    width: 640, height: 480
+                });
+                await camera.start();
+
+                gameStarted = true;
+                updateStatus('Move your finger to play!', 'success');
+                // Drive rendering from camera frames via requestAnimationFrame
+                gameLoop();
+            } catch (err) {
+                console.error(err);
+                updateStatus('Camera access denied.', 'error');
+            }
+        }
+
+        function gameLoop() {
+            if (!gameStarted) return;
+            updateGame();
+            drawGame();
+            animFrame = requestAnimationFrame(gameLoop);
+        }
+
+        function onHandResults(results) {
+            if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+                const tip = results.multiHandLandmarks[0][8]; // index finger tip
+                // Mirror X to match flipped camera
+                fingerPos = {
+                    x: (1 - tip.x) * canvas.width,
+                    y: tip.y * canvas.height
+                };
+                if (gameStarted && !gameOver) updateStatus('Move your finger to play!', 'success');
+            } else {
+                fingerPos = null;
+                if (gameStarted && !gameOver) updateStatus('Show your index finger!', 'default');
+            }
+        }
+
+        function updateGame() {
+            if (gameOver || !gameStarted || !fingerPos) return;
+
+            // --- Wall collision ---
+            if (fingerPos.x < 0 || fingerPos.x > canvas.width ||
+                fingerPos.y < 0 || fingerPos.y > canvas.height) {
+                endGame(); return;
+            }
+
+            // Add new head point only if finger moved enough (smoothness control)
+            if (snake.length === 0 ||
+                Math.hypot(fingerPos.x - snake[0].x, fingerPos.y - snake[0].y) >= SNAKE_SPACING) {
+                snake.unshift({ x: fingerPos.x, y: fingerPos.y });
+            }
+
+            // Trim tail so total trail length in pixels stays within snakeLengthPx
+            let totalDist = 0;
+            for (let i = 1; i < snake.length; i++) {
+                totalDist += Math.hypot(snake[i].x - snake[i-1].x, snake[i].y - snake[i-1].y);
+                if (totalDist > snakeLengthPx) {
+                    snake.length = i; // cut off everything beyond limit
+                    break;
+                }
+            }
+
+            // --- Food collision ---
+            if (food && snake.length > 0) {
+                if (Math.hypot(snake[0].x - food.x, snake[0].y - food.y) < FOOD_RADIUS + SNAKE_THICKNESS / 2) {
+                    score += 10;
+                    snakeLengthPx += GROW_AMOUNT_PX;
+                    spawnFood();
+                }
+            }
+
+            // --- Self-collision (skip first 40px of head to avoid false trigger) ---
+            const SKIP_PX = 40;
+            let skipDist = 0;
+            for (let i = 1; i < snake.length; i++) {
+                skipDist += Math.hypot(snake[i].x - snake[i-1].x, snake[i].y - snake[i-1].y);
+                if (skipDist < SKIP_PX) continue;
+                if (Math.hypot(snake[0].x - snake[i].x, snake[0].y - snake[i].y) < SNAKE_THICKNESS * 0.55) {
+                    endGame(); return;
+                }
+            }
+        }
+        
+        function drawGame() {
+            // --- Background: mirrored camera feed ---
+            ctx.save();
+            if (gameStarted && video.readyState >= 2) {
+                ctx.translate(canvas.width, 0);
+                ctx.scale(-1, 1);
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                ctx.restore();
+            } else {
+                ctx.restore();
+                ctx.fillStyle = '#111';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+            }
+
+            // --- Draw food (bright orange-red, stationary) ---
+            if (food) {
+                ctx.shadowColor = '#ff6600';
+                ctx.shadowBlur = 20;
+                ctx.fillStyle = '#ff4400';
+                ctx.beginPath();
+                ctx.arc(food.x, food.y, FOOD_RADIUS, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.shadowBlur = 0;
+                ctx.strokeStyle = '#ffaa00';
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.arc(food.x, food.y, FOOD_RADIUS * 0.6, 0, Math.PI * 2);
+                ctx.stroke();
+                ctx.fillStyle = 'rgba(255,255,255,0.5)';
+                ctx.beginPath();
+                ctx.arc(food.x - FOOD_RADIUS * 0.3, food.y - FOOD_RADIUS * 0.3, FOOD_RADIUS * 0.2, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            // --- Draw snake trail ---
+            if (snake.length > 1) {
+                // Outer white border
+                ctx.beginPath();
+                ctx.moveTo(snake[0].x, snake[0].y);
+                for (let i = 1; i < snake.length; i++) ctx.lineTo(snake[i].x, snake[i].y);
+                ctx.lineWidth = SNAKE_THICKNESS + 4;
+                ctx.lineCap = 'round';
+                ctx.lineJoin = 'round';
+                ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+                ctx.stroke();
+
+                // Green fill
+                ctx.beginPath();
+                ctx.moveTo(snake[0].x, snake[0].y);
+                for (let i = 1; i < snake.length; i++) ctx.lineTo(snake[i].x, snake[i].y);
+                ctx.lineWidth = SNAKE_THICKNESS;
+                ctx.strokeStyle = '#00dd55';
+                ctx.stroke();
+
+                // Red center highlight
+                ctx.beginPath();
+                ctx.moveTo(snake[0].x, snake[0].y);
+                for (let i = 1; i < snake.length; i++) ctx.lineTo(snake[i].x, snake[i].y);
+                ctx.lineWidth = SNAKE_THICKNESS * 0.4;
+                ctx.strokeStyle = '#ff3300';
+                ctx.stroke();
+            }
+
+            // --- Bright pink glowing dot at finger tip (= snake head) ---
+            if (fingerPos) {
+                ctx.shadowColor = '#ff00cc';
+                ctx.shadowBlur = 28;
+                ctx.fillStyle = '#ff00cc';
+                ctx.beginPath();
+                ctx.arc(fingerPos.x, fingerPos.y, 14, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.shadowBlur = 0;
+                ctx.fillStyle = 'rgba(255,255,255,0.85)';
+                ctx.beginPath();
+                ctx.arc(fingerPos.x, fingerPos.y, 5, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            // --- Score overlay ---
+            ctx.shadowColor = 'rgba(0,0,0,0.9)';
+            ctx.shadowBlur = 10;
+            ctx.font = 'bold 30px "Segoe UI", sans-serif';
+            ctx.textBaseline = 'top';
+            ctx.fillStyle = '#ffff00';
+            ctx.fillText(`Your Score: ${score}`, 16, 16);
+            ctx.font = 'bold 16px "Segoe UI", sans-serif';
+            ctx.fillStyle = 'rgba(255,255,255,0.75)';
+            ctx.fillText(`Best: ${highScore}`, 16, 54);
+            ctx.shadowBlur = 0;
+        }
+
+        function endGame() {
+            gameOver = true;
+            cancelAnimationFrame(animFrame);
+
+            if (score > highScore) {
+                highScore = score;
+                localStorage.setItem('snakeHighScore', highScore);
+            }
+
+            document.getElementById('finalScore').textContent = `Final Score: ${score}`;
+            document.getElementById('gameOverOverlay').classList.add('show');
+            updateStatus('Game Over! Click Restart to play again', 'error');
+            drawGame();
+        }
+
+        function resetGame() {
+            snake = [];
+            snakeLengthPx = INITIAL_LENGTH_PX;
+            fingerPos = null;
+            score = 0;
+            gameOver = false;
+            spawnFood();
+
+            document.getElementById('gameOverOverlay').classList.remove('show');
+
+            if (gameStarted) {
+                updateStatus('Move your finger to play!', 'success');
+                cancelAnimationFrame(animFrame);
+                gameLoop();
+            } else {
+                updateStatus('Click "Start" to begin', 'default');
+            }
+            drawGame();
+        }
+
+        // Initial draw
+        drawGame();
+    </script>
+</body>
+</html>
